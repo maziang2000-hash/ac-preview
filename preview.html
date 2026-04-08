@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>空调体感反馈 - 预览</title>
+  <title>空调体感反馈</title>
+  <!-- HiveMQ MQTT over WebSocket -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { background:#111; display:flex; justify-content:center; padding:20px; min-height:100vh; }
     .frame { width:375px; min-height:667px; background:#1a1a2e; border-radius:40px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.8), inset 0 0 0 1px rgba(255,255,255,.08); position:relative; font-family:'PingFang SC',-apple-system,sans-serif; }
-
     .page { padding:30px 18px 40px; }
 
     /* ========== 选择页 ========== */
@@ -61,9 +62,32 @@
     .reset-btn { padding:10px 28px; border:1px solid rgba(255,255,255,.2); border-radius:36px; background:rgba(255,255,255,.05); cursor:pointer; }
     .reset-btn:hover { background:rgba(255,255,255,.1); }
     .reset-btn span { font-size:13px; color:#8899aa; }
+
+    /* ========== MQTT状态提示 ========== */
+    .mqtt-status {
+      position:fixed; bottom:14px; right:14px;
+      padding:6px 12px; border-radius:20px; font-size:11px;
+      display:flex; align-items:center; gap:6px;
+      background:rgba(0,0,0,.6); color:#aaa;
+      backdrop-filter:blur(6px);
+      transition:all .3s;
+    }
+    .mqtt-dot { width:7px; height:7px; border-radius:50%; background:#666; }
+    .mqtt-status.connected .mqtt-dot { background:#00b894; box-shadow:0 0 6px #00b894; }
+    .mqtt-status.error .mqtt-dot { background:#e17055; }
+
+    /* ========== 发送成功提示 ========== */
+    .sent-toast {
+      position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px);
+      background:rgba(0,184,148,.9); color:#fff; padding:10px 22px; border-radius:30px;
+      font-size:13px; font-weight:600; transition:transform .35s ease;
+      white-space:nowrap; pointer-events:none;
+    }
+    .sent-toast.show { transform:translateX(-50%) translateY(0); }
   </style>
 </head>
 <body>
+
 <div class="frame">
   <div class="page">
 
@@ -75,7 +99,7 @@
 
       <div class="options-grid" id="optionsGrid"></div>
 
-      <div class="confirm-btn" id="confirmBtn" onclick="confirm()">
+      <div class="confirm-btn" id="confirmBtn" onclick="doConfirm()">
         <span>查看建议</span>
       </div>
     </div>
@@ -95,12 +119,12 @@
       </div>
 
       <div class="extra-tips">
-        <div class="tip-item"><span class="tip-icon">👕</span><span class="tip-text" id="clothTip">穿短袖即可，或者把空调调到23-24°C</span></div>
+        <div class="tip-item"><span class="tip-icon">👕</span><span class="tip-text" id="clothTip"></span></div>
         <div class="divider"></div>
-        <div class="tip-item"><span class="tip-icon">⚡</span><span class="tip-text" id="energyTip">调低温度会增加耗电，建议优先穿轻薄衣物</span></div>
+        <div class="tip-item"><span class="tip-icon">⚡</span><span class="tip-text" id="energyTip"></span></div>
       </div>
 
-      <div class="reset-btn" onclick="reset()">
+      <div class="reset-btn" onclick="doReset()">
         <span>重新选择感受</span>
       </div>
     </div>
@@ -108,61 +132,161 @@
   </div>
 </div>
 
+<!-- MQTT连接状态角标 -->
+<div class="mqtt-status" id="mqttStatus">
+  <div class="mqtt-dot"></div>
+  <span id="mqttStatusText">连接中...</span>
+</div>
+
+<!-- 发送成功提示 -->
+<div class="sent-toast" id="sentToast">✅ 反馈已上传</div>
+
 <script>
+/* ============================================================
+   数据配置
+   ============================================================ */
 const OPTIONS = [
-  {feeling:'很冷',emoji:'🥶',color:'#74b9ff',bg:'linear-gradient(145deg,#0a1628,#1a3a5c)',temp:26,reason:'你现在感觉很冷，建议把空调调高一点，让室温回升',cloth:'先穿上外套或毛衣保暖，等温度上来再脱',energy:'每调高1°C可节省约6%电费，既舒适又省电'},
-  {feeling:'有点冷',emoji:'🌨️',color:'#a29bfe',bg:'linear-gradient(145deg,#12162a,#1e2a4a)',temp:25,reason:'稍微偏凉，调高1-2度会更舒适',cloth:'可以加件薄外套，或者把空调调到25°C',energy:'25°C是兼顾舒适和节能的好选择'},
-  {feeling:'微凉',emoji:'🌤️',color:'#55efc4',bg:'linear-gradient(145deg,#0d2030,#0f3040)',temp:24,reason:'这个感觉刚好清爽，适合保持或微调',cloth:'长袖衫就很舒服，不需要额外加衣',energy:'24°C是推荐的节能温度，继续保持！'},
-  {feeling:'刚刚好',emoji:'😊',color:'#00b894',bg:'linear-gradient(145deg,#0d2a20,#0f3828)',temp:24,reason:'完美！这就是最舒适的体感温度',cloth:'现在的穿着正合适，不需要调整',energy:'当前设置很完美，无需改动，继续保持 ✅'},
-  {feeling:'有点暖',emoji:'🌞',color:'#fdcb6e',bg:'linear-gradient(145deg,#2a1f0a,#3a2a10)',temp:23,reason:'稍微偏热，调低1-2度会更清爽',cloth:'穿短袖即可，或者把空调调到23-24°C',energy:'调低温度会增加耗电，建议优先穿轻薄衣物'},
-  {feeling:'有点热',emoji:'😅',color:'#e17055',bg:'linear-gradient(145deg,#2a1510,#3a1a0a)',temp:22,reason:'明显偏热，建议把空调调低一些',cloth:'换成短袖短裤，同时把空调调到22-23°C',energy:'建议先检查空调滤网是否干净，影响制冷效果'},
-  {feeling:'很热',emoji:'🥵',color:'#e84393',bg:'linear-gradient(145deg,#2a0d18,#3a0a20)',temp:20,reason:'相当热！空调可能需要调低3-4度',cloth:'穿最轻薄的衣物，多喝水补充水分',energy:'如果调到20°C还是热，建议检查空调是否需要清洗'},
-  {feeling:'极热',emoji:'🔥',color:'#d63031',bg:'linear-gradient(145deg,#2a0808,#3a0a0a)',temp:18,reason:'极度炎热！空调可能需要维修或清洗',cloth:'穿最少衣物，立即补水，避免中暑',energy:'⚠️ 如果18°C还不凉快，请立即联系空调维修'}
+  {feeling:'很冷',   emoji:'🥶', color:'#74b9ff', bg:'linear-gradient(145deg,#0a1628,#1a3a5c)',
+   reason:'你现在感觉很冷，建议把空调调高一点，让室温回升',
+   cloth:'先穿上外套或毛衣保暖，等温度上来再脱',
+   energy:'每调高1°C可节省约6%电费，既舒适又省电'},
+  {feeling:'有点冷', emoji:'🌨️', color:'#a29bfe', bg:'linear-gradient(145deg,#12162a,#1e2a4a)',
+   reason:'稍微偏凉，调高1-2度会更舒适',
+   cloth:'可以加件薄外套，或者把空调调到25°C',
+   energy:'25°C是兼顾舒适和节能的好选择'},
+  {feeling:'微凉',   emoji:'🌤️', color:'#55efc4', bg:'linear-gradient(145deg,#0d2030,#0f3040)',
+   reason:'这个感觉刚好清爽，适合保持或微调',
+   cloth:'长袖衫就很舒服，不需要额外加衣',
+   energy:'24°C是推荐的节能温度，继续保持！'},
+  {feeling:'刚刚好', emoji:'😊', color:'#00b894', bg:'linear-gradient(145deg,#0d2a20,#0f3828)',
+   reason:'完美！这就是最舒适的体感温度',
+   cloth:'现在的穿着正合适，不需要调整',
+   energy:'当前设置很完美，无需改动，继续保持 ✅'},
+  {feeling:'有点暖', emoji:'🌞', color:'#fdcb6e', bg:'linear-gradient(145deg,#2a1f0a,#3a2a10)',
+   reason:'稍微偏热，调低1-2度会更清爽',
+   cloth:'穿短袖即可，或者把空调调到23-24°C',
+   energy:'调低温度会增加耗电，建议优先穿轻薄衣物'},
+  {feeling:'有点热', emoji:'😅', color:'#e17055', bg:'linear-gradient(145deg,#2a1510,#3a1a0a)',
+   reason:'明显偏热，建议把空调调低一些',
+   cloth:'换成短袖短裤，同时把空调调到22-23°C',
+   energy:'建议先检查空调滤网是否干净，影响制冷效果'},
+  {feeling:'很热',   emoji:'🥵', color:'#e84393', bg:'linear-gradient(145deg,#2a0d18,#3a0a20)',
+   reason:'相当热！空调可能需要调低3-4度',
+   cloth:'穿最轻薄的衣物，多喝水补充水分',
+   energy:'如果调到20°C还是热，建议检查空调是否需要清洗'},
+  {feeling:'极热',   emoji:'🔥', color:'#d63031', bg:'linear-gradient(145deg,#2a0808,#3a0a0a)',
+   reason:'极度炎热！空调可能需要维修或清洗',
+   cloth:'穿最少衣物，立即补水，避免中暑',
+   energy:'⚠️ 如果18°C还不凉快，请立即联系空调维修'}
 ]
 
-let selected = -1
+/* ============================================================
+   MQTT 配置（HiveMQ Public Broker，免费无需账号）
+   ============================================================ */
+const MQTT_HOST   = 'wss://broker.hivemq.com:8884/mqtt'
+const MQTT_TOPIC  = 'ac-feedback/responses'
+const CLIENT_ID   = 'web-' + Math.random().toString(16).slice(2, 10)
 
+let mqttClient = null
+let selected   = -1
+
+function initMQTT() {
+  mqttClient = mqtt.connect(MQTT_HOST, {
+    clientId: CLIENT_ID,
+    clean: true,
+    connectTimeout: 8000,
+    reconnectPeriod: 3000
+  })
+
+  mqttClient.on('connect', () => {
+    setStatus('connected', '已连接')
+  })
+  mqttClient.on('error', (e) => {
+    setStatus('error', '连接失败')
+    console.warn('MQTT error:', e)
+  })
+  mqttClient.on('reconnect', () => {
+    setStatus('', '重连中...')
+  })
+  mqttClient.on('close', () => {
+    setStatus('error', '已断开')
+  })
+}
+
+function setStatus(cls, text) {
+  const el = document.getElementById('mqttStatus')
+  el.className = 'mqtt-status ' + cls
+  document.getElementById('mqttStatusText').textContent = text
+}
+
+function publishFeedback(opt) {
+  if (!mqttClient || !mqttClient.connected) return
+  const payload = JSON.stringify({
+    feeling:   opt.feeling,
+    emoji:     opt.emoji,
+    timestamp: new Date().toISOString(),
+    client:    CLIENT_ID
+  })
+  mqttClient.publish(MQTT_TOPIC, payload, { qos: 1 }, (err) => {
+    if (!err) showToast()
+  })
+}
+
+function showToast() {
+  const t = document.getElementById('sentToast')
+  t.classList.add('show')
+  setTimeout(() => t.classList.remove('show'), 2500)
+}
+
+/* ============================================================
+   页面逻辑
+   ============================================================ */
 function renderOptions() {
   const grid = document.getElementById('optionsGrid')
   OPTIONS.forEach((opt, i) => {
     const el = document.createElement('div')
     el.className = 'option-card'
-    el.dataset.index = i
-    el.innerHTML = `<span class="option-emoji">${opt.emoji}</span><span class="option-text">${opt.feeling}</span><span class="option-desc">${opt.reason.slice(0,12)}...</span>`
-    el.onclick = () => select(i)
+    el.innerHTML = `
+      <span class="option-emoji">${opt.emoji}</span>
+      <span class="option-text">${opt.feeling}</span>
+      <span class="option-desc">${opt.reason.slice(0,12)}...</span>`
+    el.onclick = () => selectItem(i, el.style)
     grid.appendChild(el)
   })
 }
 
-function select(i) {
+function selectItem(i) {
   selected = i
   document.querySelectorAll('.option-card').forEach((el, idx) => {
     el.classList.toggle('selected', idx === i)
-    if (idx === i) el.style.borderColor = OPTIONS[i].color
-    else el.style.borderColor = 'transparent'
+    el.style.borderColor = idx === i ? OPTIONS[i].color : 'transparent'
   })
   document.getElementById('confirmBtn').classList.add('active')
 }
 
-function confirm() {
+function doConfirm() {
   if (selected === -1) return
   const opt = OPTIONS[selected]
-  document.getElementById('yfEmoji').textContent = opt.emoji
-  document.getElementById('yfText').textContent = opt.feeling
-  document.getElementById('yfText').style.color = opt.color
+
+  document.getElementById('yfEmoji').textContent        = opt.emoji
+  document.getElementById('yfText').textContent         = opt.feeling
+  document.getElementById('yfText').style.color         = opt.color
   document.getElementById('feedbackCard').style.background = opt.bg
-  document.getElementById('fbEmoji').textContent = opt.emoji
-  document.getElementById('fbTitle').textContent = opt.feeling
-  document.getElementById('fbTitle').style.color = opt.color
-  document.getElementById('fbDesc').textContent = opt.reason
-  document.getElementById('clothTip').textContent = opt.cloth
-  document.getElementById('energyTip').textContent = opt.energy
-  
+  document.getElementById('fbEmoji').textContent        = opt.emoji
+  document.getElementById('fbTitle').textContent        = opt.feeling
+  document.getElementById('fbTitle').style.color        = opt.color
+  document.getElementById('fbDesc').textContent         = opt.reason
+  document.getElementById('clothTip').textContent       = opt.cloth
+  document.getElementById('energyTip').textContent      = opt.energy
+
   document.getElementById('selectPage').style.display = 'none'
   document.getElementById('resultPage').classList.add('show')
+
+  // 发送 MQTT 反馈
+  publishFeedback(opt)
 }
 
-function reset() {
+function doReset() {
   selected = -1
   document.querySelectorAll('.option-card').forEach(el => {
     el.classList.remove('selected')
@@ -173,7 +297,9 @@ function reset() {
   document.getElementById('resultPage').classList.remove('show')
 }
 
+// 初始化
 renderOptions()
+initMQTT()
 </script>
 </body>
 </html>

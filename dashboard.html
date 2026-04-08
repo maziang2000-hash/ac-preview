@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>反馈数据看板 - 空调体感</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#0f1117; color:#e8eaf0; font-family:'PingFang SC',-apple-system,sans-serif; min-height:100vh; padding:24px; }
+
+    h1 { font-size:22px; font-weight:700; margin-bottom:4px; }
+    .subtitle { font-size:13px; color:#6b7a8d; margin-bottom:28px; }
+
+    /* 状态栏 */
+    .status-bar {
+      display:flex; align-items:center; gap:10px;
+      background:#1a1d27; border-radius:12px; padding:12px 18px;
+      margin-bottom:24px; font-size:13px;
+    }
+    .dot { width:9px; height:9px; border-radius:50%; background:#3a3f50; flex-shrink:0; }
+    .dot.on  { background:#00b894; box-shadow:0 0 8px #00b89488; animation:pulse 1.5s infinite; }
+    .dot.err { background:#e17055; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .status-label { color:#aab; }
+    .status-val   { color:#e8eaf0; font-weight:600; }
+    .spacer       { flex:1; }
+    .total-badge  { background:#252938; border-radius:20px; padding:4px 14px; font-size:13px; }
+    .total-badge strong { color:#00d4a0; }
+
+    /* 统计卡片 */
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:12px; margin-bottom:28px; }
+    .stat-card {
+      background:#1a1d27; border-radius:14px; padding:16px 14px;
+      text-align:center; transition:transform .2s;
+    }
+    .stat-card:hover { transform:translateY(-2px); }
+    .stat-emoji { font-size:28px; display:block; margin-bottom:6px; }
+    .stat-label { font-size:13px; color:#8899aa; margin-bottom:4px; }
+    .stat-count { font-size:26px; font-weight:800; }
+    .stat-pct   { font-size:11px; color:#6b7a8d; margin-top:2px; }
+
+    /* 进度条 */
+    .bar-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+    .bar-label { width:56px; font-size:12px; color:#8899aa; text-align:right; flex-shrink:0; }
+    .bar-wrap  { flex:1; background:#252938; border-radius:6px; height:10px; overflow:hidden; }
+    .bar-fill  { height:100%; border-radius:6px; transition:width .5s ease; }
+    .bar-count { width:28px; font-size:12px; color:#6b7a8d; text-align:right; flex-shrink:0; }
+
+    /* 消息流 */
+    h2 { font-size:15px; font-weight:600; color:#8899aa; margin-bottom:12px; letter-spacing:.5px; }
+    .feed { display:flex; flex-direction:column; gap:8px; }
+    .feed-item {
+      background:#1a1d27; border-radius:12px; padding:12px 16px;
+      display:flex; align-items:center; gap:14px;
+      animation:slideIn .3s ease;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+    .feed-emoji { font-size:26px; flex-shrink:0; }
+    .feed-main  { flex:1; }
+    .feed-feeling { font-size:16px; font-weight:700; }
+    .feed-time  { font-size:11px; color:#5a6a7a; margin-top:2px; }
+    .feed-empty { color:#3a4a5a; font-size:13px; text-align:center; padding:32px 0; }
+
+    .clear-btn {
+      background:none; border:1px solid #2a3040; border-radius:8px;
+      color:#6b7a8d; font-size:12px; padding:5px 14px; cursor:pointer;
+      transition:all .2s; float:right; margin-top:-2px;
+    }
+    .clear-btn:hover { border-color:#e17055; color:#e17055; }
+  </style>
+</head>
+<body>
+
+<h1>🌡️ 空调体感 · 反馈看板</h1>
+<p class="subtitle">实时采集用户感受数据 · HiveMQ MQTT</p>
+
+<!-- 连接状态 -->
+<div class="status-bar">
+  <div class="dot" id="dot"></div>
+  <span class="status-label">MQTT：</span>
+  <span class="status-val" id="statusVal">连接中...</span>
+  <div class="spacer"></div>
+  <div class="total-badge">共收到 <strong id="totalCount">0</strong> 条反馈</div>
+</div>
+
+<!-- 统计网格 -->
+<div class="stats-grid" id="statsGrid"></div>
+
+<!-- 分布条形图 -->
+<div style="background:#1a1d27;border-radius:14px;padding:18px 20px;margin-bottom:28px;">
+  <h2>📊 感受分布</h2>
+  <div id="barChart"></div>
+</div>
+
+<!-- 实时消息流 -->
+<div style="background:#1a1d27;border-radius:14px;padding:18px 20px;">
+  <h2 style="display:inline-block;">📡 实时消息流</h2>
+  <button class="clear-btn" onclick="clearFeed()">清空</button>
+  <div class="feed" id="feed">
+    <div class="feed-empty">等待接收用户反馈...</div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   配置
+   ============================================================ */
+const MQTT_HOST  = 'wss://broker.hivemq.com:8884/mqtt'
+const MQTT_TOPIC = 'ac-feedback/responses'
+const CLIENT_ID  = 'dashboard-' + Math.random().toString(16).slice(2, 10)
+
+const FEELINGS = [
+  {feeling:'很冷',   emoji:'🥶', color:'#74b9ff'},
+  {feeling:'有点冷', emoji:'🌨️', color:'#a29bfe'},
+  {feeling:'微凉',   emoji:'🌤️', color:'#55efc4'},
+  {feeling:'刚刚好', emoji:'😊', color:'#00b894'},
+  {feeling:'有点暖', emoji:'🌞', color:'#fdcb6e'},
+  {feeling:'有点热', emoji:'😅', color:'#e17055'},
+  {feeling:'很热',   emoji:'🥵', color:'#e84393'},
+  {feeling:'极热',   emoji:'🔥', color:'#d63031'},
+]
+
+// 本地统计
+const counts = {}
+FEELINGS.forEach(f => counts[f.feeling] = 0)
+let total = 0
+const MAX_FEED = 30
+
+/* ============================================================
+   初始化统计卡片
+   ============================================================ */
+function renderStats() {
+  const grid = document.getElementById('statsGrid')
+  grid.innerHTML = FEELINGS.map(f => `
+    <div class="stat-card">
+      <span class="stat-emoji">${f.emoji}</span>
+      <div class="stat-label">${f.feeling}</div>
+      <div class="stat-count" id="cnt-${f.feeling}" style="color:${f.color}">0</div>
+      <div class="stat-pct" id="pct-${f.feeling}">-</div>
+    </div>`).join('')
+}
+
+function renderBars() {
+  const chart = document.getElementById('barChart')
+  chart.innerHTML = FEELINGS.map(f => `
+    <div class="bar-row">
+      <div class="bar-label">${f.emoji} ${f.feeling}</div>
+      <div class="bar-wrap"><div class="bar-fill" id="bar-${f.feeling}" style="background:${f.color};width:0%"></div></div>
+      <div class="bar-count" id="bc-${f.feeling}">0</div>
+    </div>`).join('')
+}
+
+function updateStats() {
+  document.getElementById('totalCount').textContent = total
+  FEELINGS.forEach(f => {
+    const c = counts[f.feeling] || 0
+    const pct = total ? Math.round(c / total * 100) : 0
+    document.getElementById('cnt-' + f.feeling).textContent = c
+    document.getElementById('pct-' + f.feeling).textContent = total ? pct + '%' : '-'
+    document.getElementById('bar-' + f.feeling).style.width = pct + '%'
+    document.getElementById('bc-' + f.feeling).textContent = c
+  })
+}
+
+/* ============================================================
+   消息流
+   ============================================================ */
+function addFeedItem(data) {
+  const feed = document.getElementById('feed')
+  const empty = feed.querySelector('.feed-empty')
+  if (empty) empty.remove()
+
+  const f = FEELINGS.find(x => x.feeling === data.feeling) || {emoji:'❓', color:'#aaa'}
+  const time = new Date(data.timestamp || Date.now()).toLocaleTimeString('zh-CN')
+
+  const el = document.createElement('div')
+  el.className = 'feed-item'
+  el.innerHTML = `
+    <div class="feed-emoji">${f.emoji}</div>
+    <div class="feed-main">
+      <div class="feed-feeling" style="color:${f.color}">${data.feeling}</div>
+      <div class="feed-time">${time} · ${data.client || '匿名'}</div>
+    </div>`
+
+  feed.insertBefore(el, feed.firstChild)
+
+  // 超过MAX_FEED条时移除最旧的
+  const items = feed.querySelectorAll('.feed-item')
+  if (items.length > MAX_FEED) items[items.length - 1].remove()
+}
+
+function clearFeed() {
+  document.getElementById('feed').innerHTML = '<div class="feed-empty">等待接收用户反馈...</div>'
+}
+
+/* ============================================================
+   MQTT
+   ============================================================ */
+function initMQTT() {
+  const client = mqtt.connect(MQTT_HOST, {
+    clientId: CLIENT_ID,
+    clean: true,
+    connectTimeout: 8000,
+    reconnectPeriod: 3000
+  })
+
+  client.on('connect', () => {
+    document.getElementById('dot').className = 'dot on'
+    document.getElementById('statusVal').textContent = '已连接 broker.hivemq.com'
+    client.subscribe(MQTT_TOPIC, { qos: 1 })
+  })
+
+  client.on('message', (topic, payload) => {
+    try {
+      const data = JSON.parse(payload.toString())
+      if (data.feeling) {
+        counts[data.feeling] = (counts[data.feeling] || 0) + 1
+        total++
+        updateStats()
+        addFeedItem(data)
+      }
+    } catch(e) { console.warn('解析消息失败', e) }
+  })
+
+  client.on('error', () => {
+    document.getElementById('dot').className = 'dot err'
+    document.getElementById('statusVal').textContent = '连接失败，重试中...'
+  })
+
+  client.on('close', () => {
+    document.getElementById('dot').className = 'dot err'
+    document.getElementById('statusVal').textContent = '已断开，重连中...'
+  })
+}
+
+// 启动
+renderStats()
+renderBars()
+initMQTT()
+</script>
+</body>
+</html>
