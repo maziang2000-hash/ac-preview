@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>空调体感反馈 - 链接分享</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: linear-gradient(135deg, #0f1117 0%, #1a1d27 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'PingFang SC', -apple-system, sans-serif;
+      padding: 24px;
+    }
+    .container { max-width: 680px; width: 100%; }
+
+    h1 {
+      text-align: center;
+      font-size: 28px;
+      font-weight: 800;
+      color: #e8eaf0;
+      margin-bottom: 6px;
+    }
+    .sub {
+      text-align: center;
+      font-size: 14px;
+      color: #6b7a8d;
+      margin-bottom: 40px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 500px) {
+      .cards { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: #1a1d27;
+      border-radius: 20px;
+      padding: 28px 24px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,.06);
+      transition: transform .2s, box-shadow .2s;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px rgba(0,0,0,.4);
+    }
+
+    .card-icon { font-size: 40px; margin-bottom: 12px; display: block; }
+    .card-title { font-size: 18px; font-weight: 700; color: #e8eaf0; margin-bottom: 6px; }
+    .card-desc  { font-size: 13px; color: #6b7a8d; margin-bottom: 20px; line-height: 1.6; }
+
+    .qr-box {
+      background: white;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 18px;
+      display: inline-block;
+    }
+    .qr-box img { width: 160px; height: 160px; display: block; }
+
+    .link-box {
+      background: rgba(255,255,255,.05);
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+    }
+    .link-url {
+      font-size: 11px;
+      color: #8899aa;
+      word-break: break-all;
+      flex: 1;
+    }
+    .copy-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 6px;
+      color: #8899aa;
+      font-size: 11px;
+      padding: 4px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .2s;
+    }
+    .copy-btn:hover { border-color: #00b894; color: #00b894; }
+    .copy-btn.copied { border-color: #00b894; color: #00b894; background: rgba(0,184,148,.1); }
+
+    .open-btn {
+      display: block;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity .2s;
+    }
+    .open-btn:hover { opacity: .85; }
+    .btn-user      { background: linear-gradient(135deg,#00b894,#00d4a0); color: #fff; }
+    .btn-dashboard { background: linear-gradient(135deg,#6c5ce7,#a29bfe); color: #fff; }
+
+    .footer {
+      text-align: center;
+      margin-top: 32px;
+      font-size: 12px;
+      color: #3a4a5a;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>🌡️ 空调体感反馈</h1>
+  <p class="sub">扫码或点击链接直接访问 · 数据实时采集</p>
+
+  <div class="cards">
+
+    <!-- 用户端 -->
+    <div class="card">
+      <span class="card-icon">📱</span>
+      <div class="card-title">用户填写端</div>
+      <div class="card-desc">扫码打开，选择当前冷热感受<br>点击"查看建议"后提交数据</div>
+      <div class="qr-box">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=https://maziang2000-hash.github.io/ac-preview/preview.html" alt="用户端二维码">
+      </div>
+      <div class="link-box">
+        <span class="link-url">maziang2000-hash.github.io/ac-preview/preview.html</span>
+        <button class="copy-btn" onclick="copyLink(this, 'https://maziang2000-hash.github.io/ac-preview/preview.html')">复制</button>
+      </div>
+      <a class="open-btn btn-user" href="https://maziang2000-hash.github.io/ac-preview/preview.html" target="_blank">
+        打开用户端 →
+      </a>
+    </div>
+
+    <!-- 看板端 -->
+    <div class="card">
+      <span class="card-icon">📊</span>
+      <div class="card-title">数据看板</div>
+      <div class="card-desc">实时显示所有用户的反馈<br>统计分布 · 消息流 · 自动刷新</div>
+      <div class="qr-box">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=https://maziang2000-hash.github.io/ac-preview/dashboard.html" alt="看板端二维码">
+      </div>
+      <div class="link-box">
+        <span class="link-url">maziang2000-hash.github.io/ac-preview/dashboard.html</span>
+        <button class="copy-btn" onclick="copyLink(this, 'https://maziang2000-hash.github.io/ac-preview/dashboard.html')">复制</button>
+      </div>
+      <a class="open-btn btn-dashboard" href="https://maziang2000-hash.github.io/ac-preview/dashboard.html" target="_blank">
+        打开看板端 →
+      </a>
+    </div>
+
+  </div>
+
+  <p class="footer">数据通过 HiveMQ MQTT 实时传输 · GitHub Pages 永久托管</p>
+</div>
+
+<script>
+function copyLink(btn, url) {
+  navigator.clipboard.writeText(url).then(() => {
+    btn.textContent = '已复制 ✓'
+    btn.classList.add('copied')
+    setTimeout(() => {
+      btn.textContent = '复制'
+      btn.classList.remove('copied')
+    }, 2000)
+  })
+}
+</script>
+</body>
+</html>
