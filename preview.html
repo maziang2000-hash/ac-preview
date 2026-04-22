@@ -49,6 +49,9 @@
     .mqtt-status.error .mqtt-dot { background:#e17055; }
     .sent-toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px); background:rgba(0,184,148,.9); color:#fff; padding:10px 22px; border-radius:30px; font-size:13px; font-weight:600; transition:transform .35s ease; white-space:nowrap; pointer-events:none; }
     .sent-toast.show { transform:translateX(-50%) translateY(0); }
+    .source-badge { display:none; align-items:center; gap:7px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:20px; padding:6px 14px; margin-bottom:16px; font-size:13px; color:#ccdde8; }
+    .source-badge.show { display:flex; }
+    .source-dot { width:8px; height:8px; border-radius:50%; background:#00b894; box-shadow:0 0 6px #00b894; flex-shrink:0; }
   </style>
 </head>
 <body>
@@ -56,6 +59,7 @@
   <div class="page">
     <div class="select-page" id="selectPage">
       <div class="select-logo">🌡️</div>
+      <div class="source-badge" id="sourceBadge"><div class="source-dot"></div><span id="sourceText"></span></div>
       <span class="select-title">你现在感觉怎么样？</span>
       <span class="select-hint">选择最符合你当前感受的选项</span>
       <div class="options-grid" id="optionsGrid"></div>
@@ -108,6 +112,17 @@ const TOPIC    = 'ac-feedback/responses'          // 单条消息
 const TOPIC_STAT = 'ac-feedback/stats'             // retained 统计（看板恢复用）
 const CLIENT_ID = 'web-' + Math.random().toString(16).slice(2,10)
 
+// ── 读取来源参数 ─────────────────────────────────────
+const URL_PARAMS = new URLSearchParams(window.location.search)
+const SOURCE     = URL_PARAMS.get('from') || ''   // 如: ?from=A栋大厅
+const SOURCE_LABEL = SOURCE ? decodeURIComponent(SOURCE) : ''
+
+// 显示来源标签
+if (SOURCE_LABEL) {
+  document.getElementById('sourceText').textContent = '来自：' + SOURCE_LABEL
+  document.getElementById('sourceBadge').classList.add('show')
+}
+
 let client = null
 let selected = -1
 
@@ -136,8 +151,14 @@ function setStatus(cls, text) {
 function publishFeedback(opt) {
   if (!client || !client.connected) return
 
-  // 1. 发布单条反馈消息
-  const msg = JSON.stringify({ feeling: opt.feeling, emoji: opt.emoji, timestamp: new Date().toISOString(), client: CLIENT_ID })
+  // 1. 发布单条反馈消息（附带来源）
+  const msg = JSON.stringify({
+    feeling:   opt.feeling,
+    emoji:     opt.emoji,
+    timestamp: new Date().toISOString(),
+    client:    CLIENT_ID,
+    source:    SOURCE_LABEL || 'unknown'
+  })
   client.publish(TOPIC, msg, { qos: 1 })
 
   // 2. 更新并发布 retained 统计（看板重新打开时能读到历史总量）

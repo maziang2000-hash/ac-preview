@@ -3,177 +3,263 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>空调体感反馈 - 链接分享</title>
+  <title>空调体感反馈 - 二维码生成器</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
       background: linear-gradient(135deg, #0f1117 0%, #1a1d27 100%);
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       font-family: 'PingFang SC', -apple-system, sans-serif;
-      padding: 24px;
-    }
-    .container { max-width: 680px; width: 100%; }
-
-    h1 {
-      text-align: center;
-      font-size: 28px;
-      font-weight: 800;
+      padding: 30px 16px 50px;
       color: #e8eaf0;
-      margin-bottom: 6px;
     }
-    .sub {
-      text-align: center;
-      font-size: 14px;
-      color: #6b7a8d;
-      margin-bottom: 40px;
-    }
+    .container { max-width: 720px; margin: 0 auto; }
 
-    .cards {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    @media (max-width: 500px) {
-      .cards { grid-template-columns: 1fr; }
-    }
+    h1 { text-align:center; font-size:26px; font-weight:800; margin-bottom:6px; }
+    .sub { text-align:center; font-size:13px; color:#6b7a8d; margin-bottom:36px; }
 
-    .card {
+    /* ── 生成器区域 ── */
+    .generator {
       background: #1a1d27;
+      border: 1px solid rgba(255,255,255,.08);
       border-radius: 20px;
       padding: 28px 24px;
+      margin-bottom: 32px;
+    }
+    .gen-title { font-size:16px; font-weight:700; color:#e8eaf0; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+    .gen-hint  { font-size:13px; color:#6b7a8d; margin-bottom:20px; line-height:1.6; }
+
+    .input-row { display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+    .input-row input {
+      flex:1; min-width:180px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px;
+      padding: 11px 14px;
+      color: #e8eaf0;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .input-row input:focus { border-color: #00b894; }
+    .input-row input::placeholder { color: #4a5a6a; }
+    .add-btn {
+      background: linear-gradient(135deg,#00b894,#00d4a0);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 11px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity .2s;
+    }
+    .add-btn:hover { opacity:.85; }
+
+    /* 快捷标签 */
+    .presets { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+    .preset-tag {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: #8899aa;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .preset-tag:hover { border-color:#00b894; color:#00b894; background:rgba(0,184,148,.08); }
+
+    /* ── 二维码列表 ── */
+    .qr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:18px; }
+    .qr-card {
+      background: #1a1d27;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 20px 16px;
       text-align: center;
-      border: 1px solid rgba(255,255,255,.06);
+      position: relative;
       transition: transform .2s, box-shadow .2s;
     }
-    .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 16px 40px rgba(0,0,0,.4);
-    }
+    .qr-card:hover { transform:translateY(-3px); box-shadow:0 12px 32px rgba(0,0,0,.4); }
+    .qr-source { font-size:14px; font-weight:700; color:#e8eaf0; margin-bottom:14px; }
+    .qr-box { background:#fff; border-radius:10px; padding:10px; display:inline-block; margin-bottom:14px; }
+    .qr-box img { width:140px; height:140px; display:block; }
+    .qr-url { font-size:10px; color:#5a6a7a; word-break:break-all; margin-bottom:12px; line-height:1.5; }
 
-    .card-icon { font-size: 40px; margin-bottom: 12px; display: block; }
-    .card-title { font-size: 18px; font-weight: 700; color: #e8eaf0; margin-bottom: 6px; }
-    .card-desc  { font-size: 13px; color: #6b7a8d; margin-bottom: 20px; line-height: 1.6; }
-
-    .qr-box {
-      background: white;
-      border-radius: 12px;
-      padding: 12px;
-      margin-bottom: 18px;
-      display: inline-block;
-    }
-    .qr-box img { width: 160px; height: 160px; display: block; }
-
-    .link-box {
-      background: rgba(255,255,255,.05);
-      border-radius: 10px;
-      padding: 10px 14px;
-      margin-bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      text-align: left;
-    }
-    .link-url {
-      font-size: 11px;
-      color: #8899aa;
-      word-break: break-all;
-      flex: 1;
+    .btn-row { display:flex; gap:8px; justify-content:center; }
+    .copy-btn, .del-btn {
+      border-radius: 8px;
+      font-size: 12px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: all .2s;
+      font-weight: 600;
     }
     .copy-btn {
       background: none;
       border: 1px solid rgba(255,255,255,.15);
-      border-radius: 6px;
       color: #8899aa;
-      font-size: 11px;
-      padding: 4px 10px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all .2s;
     }
-    .copy-btn:hover { border-color: #00b894; color: #00b894; }
-    .copy-btn.copied { border-color: #00b894; color: #00b894; background: rgba(0,184,148,.1); }
-
-    .open-btn {
-      display: block;
-      padding: 12px;
-      border-radius: 12px;
-      font-size: 14px;
-      font-weight: 600;
-      text-decoration: none;
-      transition: opacity .2s;
+    .copy-btn:hover { border-color:#00b894; color:#00b894; }
+    .copy-btn.copied { border-color:#00b894; color:#00b894; background:rgba(0,184,148,.1); }
+    .del-btn {
+      background: none;
+      border: 1px solid rgba(231,76,60,.25);
+      color: rgba(231,76,60,.6);
     }
-    .open-btn:hover { opacity: .85; }
-    .btn-user      { background: linear-gradient(135deg,#00b894,#00d4a0); color: #fff; }
-    .btn-dashboard { background: linear-gradient(135deg,#6c5ce7,#a29bfe); color: #fff; }
+    .del-btn:hover { border-color:#e74c3c; color:#e74c3c; background:rgba(231,76,60,.08); }
 
-    .footer {
+    /* 固定的两个默认卡片 */
+    .static-section { margin-bottom: 32px; }
+    .section-label { font-size:13px; color:#6b7a8d; margin-bottom:14px; padding-left:4px; }
+
+    /* 看板卡 */
+    .dashboard-card {
+      background: #1a1d27;
+      border: 1px solid rgba(108,92,231,.2);
+      border-radius: 18px;
+      padding: 20px 16px;
       text-align: center;
-      margin-top: 32px;
-      font-size: 12px;
-      color: #3a4a5a;
+      margin-bottom: 20px;
     }
+    .dashboard-card .qr-source { color:#a29bfe; }
+
+    .footer { text-align:center; margin-top:36px; font-size:12px; color:#3a4a5a; }
   </style>
 </head>
 <body>
 <div class="container">
   <h1>🌡️ 空调体感反馈</h1>
-  <p class="sub">扫码或点击链接直接访问 · 数据实时采集</p>
+  <p class="sub">为每个地点生成专属二维码 · 扫码即可看到来源位置</p>
 
-  <div class="cards">
-
-    <!-- 用户端 -->
-    <div class="card">
-      <span class="card-icon">📱</span>
-      <div class="card-title">用户填写端</div>
-      <div class="card-desc">扫码打开，选择当前冷热感受<br>点击"查看建议"后提交数据</div>
+  <!-- ── 看板（固定） ── -->
+  <div class="static-section">
+    <p class="section-label">📊 数据看板（管理员使用）</p>
+    <div class="dashboard-card">
+      <div class="qr-source">数据看板</div>
       <div class="qr-box">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=https://maziang2000-hash.github.io/ac-preview/preview.html" alt="用户端二维码">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=https://maziang2000-hash.github.io/ac-preview/dashboard.html" alt="看板二维码">
       </div>
-      <div class="link-box">
-        <span class="link-url">maziang2000-hash.github.io/ac-preview/preview.html</span>
-        <button class="copy-btn" onclick="copyLink(this, 'https://maziang2000-hash.github.io/ac-preview/preview.html')">复制</button>
+      <div class="qr-url">maziang2000-hash.github.io/ac-preview/dashboard.html</div>
+      <div class="btn-row">
+        <button class="copy-btn" onclick="copyText(this,'https://maziang2000-hash.github.io/ac-preview/dashboard.html')">复制链接</button>
+        <a href="https://maziang2000-hash.github.io/ac-preview/dashboard.html" target="_blank"
+           style="background:linear-gradient(135deg,#6c5ce7,#a29bfe);color:#fff;border-radius:8px;font-size:12px;padding:6px 12px;text-decoration:none;font-weight:600;">打开 →</a>
       </div>
-      <a class="open-btn btn-user" href="https://maziang2000-hash.github.io/ac-preview/preview.html" target="_blank">
-        打开用户端 →
-      </a>
     </div>
-
-    <!-- 看板端 -->
-    <div class="card">
-      <span class="card-icon">📊</span>
-      <div class="card-title">数据看板</div>
-      <div class="card-desc">实时显示所有用户的反馈<br>统计分布 · 消息流 · 自动刷新</div>
-      <div class="qr-box">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=https://maziang2000-hash.github.io/ac-preview/dashboard.html" alt="看板端二维码">
-      </div>
-      <div class="link-box">
-        <span class="link-url">maziang2000-hash.github.io/ac-preview/dashboard.html</span>
-        <button class="copy-btn" onclick="copyLink(this, 'https://maziang2000-hash.github.io/ac-preview/dashboard.html')">复制</button>
-      </div>
-      <a class="open-btn btn-dashboard" href="https://maziang2000-hash.github.io/ac-preview/dashboard.html" target="_blank">
-        打开看板端 →
-      </a>
-    </div>
-
   </div>
+
+  <!-- ── 二维码生成器 ── -->
+  <div class="generator">
+    <div class="gen-title">📍 生成地点专属二维码</div>
+    <div class="gen-hint">输入地点名称，生成带来源标记的二维码。用户扫码后页面会显示"来自：XX地点"，数据看板也能看到各地点的提交情况。</div>
+
+    <p class="section-label" style="margin-bottom:8px;">快捷选择</p>
+    <div class="presets">
+      <span class="preset-tag" onclick="fillPreset('A栋大厅')">A栋大厅</span>
+      <span class="preset-tag" onclick="fillPreset('B栋会议室')">B栋会议室</span>
+      <span class="preset-tag" onclick="fillPreset('C栋办公区')">C栋办公区</span>
+      <span class="preset-tag" onclick="fillPreset('D栋餐厅')">D栋餐厅</span>
+      <span class="preset-tag" onclick="fillPreset('1楼大堂')">1楼大堂</span>
+      <span class="preset-tag" onclick="fillPreset('2楼办公室')">2楼办公室</span>
+      <span class="preset-tag" onclick="fillPreset('3楼会议室')">3楼会议室</span>
+      <span class="preset-tag" onclick="fillPreset('东区')">东区</span>
+      <span class="preset-tag" onclick="fillPreset('西区')">西区</span>
+    </div>
+
+    <div class="input-row">
+      <input type="text" id="sourceInput" placeholder="输入地点名称，例如：A栋大厅" maxlength="30"
+             onkeydown="if(event.key==='Enter') addQR()">
+      <button class="add-btn" onclick="addQR()">生成二维码</button>
+    </div>
+  </div>
+
+  <!-- ── 已生成的二维码列表 ── -->
+  <p class="section-label" id="qrListLabel" style="display:none;">已生成的专属二维码</p>
+  <div class="qr-grid" id="qrGrid"></div>
 
   <p class="footer">数据通过 HiveMQ MQTT 实时传输 · GitHub Pages 永久托管</p>
 </div>
 
 <script>
-function copyLink(btn, url) {
-  navigator.clipboard.writeText(url).then(() => {
+const BASE_URL = 'https://maziang2000-hash.github.io/ac-preview/preview.html'
+let qrList = JSON.parse(localStorage.getItem('qr_sources') || '[]')
+
+function buildURL(source) {
+  return BASE_URL + '?from=' + encodeURIComponent(source)
+}
+
+function buildQRImgURL(url) {
+  return 'https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=' + encodeURIComponent(url)
+}
+
+function addQR() {
+  const input = document.getElementById('sourceInput')
+  const name  = input.value.trim()
+  if (!name) { input.focus(); return }
+  if (qrList.includes(name)) {
+    input.value = ''
+    alert('该地点已生成过二维码')
+    return
+  }
+  qrList.push(name)
+  localStorage.setItem('qr_sources', JSON.stringify(qrList))
+  input.value = ''
+  renderQRList()
+}
+
+function removeQR(name) {
+  qrList = qrList.filter(n => n !== name)
+  localStorage.setItem('qr_sources', JSON.stringify(qrList))
+  renderQRList()
+}
+
+function fillPreset(name) {
+  document.getElementById('sourceInput').value = name
+  document.getElementById('sourceInput').focus()
+}
+
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(() => {
     btn.textContent = '已复制 ✓'
     btn.classList.add('copied')
-    setTimeout(() => {
-      btn.textContent = '复制'
-      btn.classList.remove('copied')
-    }, 2000)
+    setTimeout(() => { btn.textContent = '复制链接'; btn.classList.remove('copied') }, 2000)
   })
 }
+
+function renderQRList() {
+  const grid  = document.getElementById('qrGrid')
+  const label = document.getElementById('qrListLabel')
+  grid.innerHTML = ''
+
+  if (qrList.length === 0) {
+    label.style.display = 'none'
+    return
+  }
+  label.style.display = 'block'
+
+  qrList.forEach(name => {
+    const url    = buildURL(name)
+    const qrImg  = buildQRImgURL(url)
+    const card   = document.createElement('div')
+    card.className = 'qr-card'
+    card.innerHTML = `
+      <div class="qr-source">📍 ${name}</div>
+      <div class="qr-box"><img src="${qrImg}" alt="${name}二维码" loading="lazy"></div>
+      <div class="qr-url">${url}</div>
+      <div class="btn-row">
+        <button class="copy-btn" onclick="copyText(this,'${url}')">复制链接</button>
+        <button class="del-btn" onclick="removeQR('${name.replace(/'/g,"\\'")}')">删除</button>
+      </div>
+    `
+    grid.appendChild(card)
+  })
+}
+
+// 初始化
+renderQRList()
 </script>
 </body>
 </html>
