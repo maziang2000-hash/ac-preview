@@ -50,6 +50,7 @@
     .feed-main  { flex:1; }
     .feed-feeling { font-size:16px; font-weight:700; }
     .feed-time  { font-size:11px; color:#5a6a7a; margin-top:2px; }
+    .feed-source { display:inline-block; margin-top:4px; font-size:11px; background:rgba(162,155,254,.15); color:#a29bfe; border-radius:10px; padding:1px 8px; }
     .feed-empty { color:#3a4a5a; font-size:13px; text-align:center; padding:32px 0; }
 
     .clear-btn { background:none; border:1px solid #2a3040; border-radius:8px; color:#6b7a8d; font-size:12px; padding:5px 14px; cursor:pointer; transition:all .2s; float:right; margin-top:-2px; }
@@ -182,11 +183,15 @@ function addFeedItem(data, prepend = true, save = true) {
 
   const el = document.createElement('div')
   el.className = 'feed-item'
+  const sourceTag = (data.source && data.source !== 'unknown')
+    ? `<span class="feed-source">📍 ${data.source}</span>`
+    : ''
   el.innerHTML = `
     <div class="feed-emoji">${f.emoji}</div>
     <div class="feed-main">
       <div class="feed-feeling" style="color:${f.color}">${data.feeling}</div>
       <div class="feed-time">${time} · ${(data.client||'').slice(0,12)||'匿名'}</div>
+      ${sourceTag}
     </div>`
 
   if (prepend) feed.insertBefore(el, feed.firstChild)
@@ -199,7 +204,7 @@ function addFeedItem(data, prepend = true, save = true) {
   // 持久化缓存
   if (save) {
     const cache = loadFeedCache()
-    cache.unshift({ feeling: data.feeling, timestamp: data.timestamp||new Date().toISOString(), client: data.client||'' })
+    cache.unshift({ feeling: data.feeling, timestamp: data.timestamp||new Date().toISOString(), client: data.client||'', source: data.source||'' })
     saveFeedCache(cache)
   }
 }
